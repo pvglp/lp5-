@@ -1,0 +1,140 @@
+#include <iostream>
+#include <vector>
+#include <omp.h>
+#include <cstdlib>
+using namespace std;
+
+// Sequential Bubble Sort
+void sequential_bubble_sort(const vector<int>& arr) {
+    vector<int> array = arr;
+    double start = omp_get_wtime();
+
+    int size = array.size();
+    for(int i = 0; i < size - 1; i++) {
+        for(int j = 0; j < size - i - 1; j++) {
+            if(array[j] > array[j+1]) swap(array[j], array[j+1]);
+        }
+    }
+
+    double end = omp_get_wtime();
+    cout << "\n*** Sequential Bubble Sort ***\n";
+    cout << "Time Required: " << end - start << " seconds\n\n";
+}
+
+// Parallel Bubble Sort (Odd-Even Transposition Sort)
+void parallel_bubble_sort(const vector<int>& arr) {
+    vector<int> array = arr;
+    int size = array.size();
+    double start = omp_get_wtime();
+
+    for(int k = 0; k < size; k++) {
+        if(k % 2 == 0) {
+            #pragma omp parallel for schedule(static)
+            for(int i = 1; i < size - 1; i += 2) {
+                if(array[i] > array[i+1]) swap(array[i], array[i+1]);
+            }
+        } else {
+            #pragma omp parallel for schedule(static)
+            for(int i = 0; i < size - 1; i += 2) {
+                if(array[i] > array[i+1]) swap(array[i], array[i+1]);
+            }
+        }
+    }
+
+    double end = omp_get_wtime();
+    cout << "\n*** Parallel Bubble Sort ***\n";
+    cout << "Time Required: " << end - start << " seconds\n\n";
+}
+
+// Merge function
+void merge(vector<int>& array, int low, int mid, int high, vector<int>& temp) {
+    int i = low, j = mid + 1, k = low;
+    while(i <= mid && j <= high) {
+        if(array[i] <= array[j]) temp[k++] = array[i++];
+        else temp[k++] = array[j++];
+    }
+    while(i <= mid) temp[k++] = array[i++];
+    while(j <= high) temp[k++] = array[j++];
+    for(int idx = low; idx <= high; idx++) array[idx] = temp[idx];
+}
+
+// Sequential Merge Sort
+void mergesort(vector<int>& array, int low, int high, vector<int>& temp) {
+    if(low < high) {
+        int mid = (low + high) / 2;
+        mergesort(array, low, mid, temp);
+        mergesort(array, mid+1, high, temp);
+        merge(array, low, mid, high, temp);
+    }
+}
+
+void perform_merge_sort(const vector<int>& arr) {
+    vector<int> array = arr;
+    vector<int> temp(array.size());
+    double start = omp_get_wtime();
+
+    mergesort(array, 0, array.size() - 1, temp);
+
+    double end = omp_get_wtime();
+    cout << "\n*** Sequential Merge Sort ***\n";
+    cout << "Time Required: " << end - start << " seconds\n\n";
+}
+
+// Parallel Merge Sort with OpenMP tasks
+void p_mergesort(vector<int>& array, int low, int high, vector<int>& temp, int depth = 0) {
+    if(low < high) {
+        int mid = (low + high) / 2;
+
+        if(depth < 4) { // Limit depth to prevent too many threads
+            #pragma omp task shared(array, temp)
+            p_mergesort(array, low, mid, temp, depth + 1);
+
+            #pragma omp task shared(array, temp)
+            p_mergesort(array, mid+1, high, temp, depth + 1);
+
+            #pragma omp taskwait
+        } else {
+            p_mergesort(array, low, mid, temp, depth + 1);
+            p_mergesort(array, mid+1, high, temp, depth + 1);
+        }
+
+        merge(array, low, mid, high, temp);
+    }
+}
+
+void perform_parallel_merge_sort(const vector<int>& arr) {
+    vector<int> array = arr;
+    vector<int> temp(array.size());
+    double start = omp_get_wtime();
+
+    #pragma omp parallel
+    {
+        #pragma omp single
+        p_mergesort(array, 0, array.size() - 1, temp);
+    }
+
+    double end = omp_get_wtime();
+    cout << "\n*** Parallel Merge Sort ***\n";
+    cout << "Time Required: " << end - start << " seconds\n\n";
+}
+
+int main() {
+    int SIZE;
+    int MAX = 1000;
+    cout << "Enter size of array: ";
+    cin >> SIZE;
+
+    vector<int> array(SIZE);
+    for(int i = 0; i < SIZE; i++) 
+    {
+	//array[i] = rand() % MAX;
+	cin>>array[i];
+    }
+
+    sequential_bubble_sort(array);
+    parallel_bubble_sort(array);
+    perform_merge_sort(array);
+    perform_parallel_merge_sort(array);
+
+    return 0;
+}
